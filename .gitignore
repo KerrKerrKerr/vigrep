@@ -1,0 +1,19 @@
+# Rust build output
+/target/
+
+# Vigrep local index files
+/.vigrep.x
+/.vigrep.x-shm
+/.vigrep.x-wal
+
+# Editor and OS noise
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Rust backup files
+**/*.rs.bk
+
+
+Cargo.lock

@@ -1,0 +1,13 @@
+backend = "llama-cpp"
+batch_size = 16
+concurrent_requests = 2
+chunk_lines = 32
+chunk_overlap = 8
+
+[llama_cpp]
+base_url = "http://192.168.1.130:11435"
+model = "Qwen.Qwen3-VL-Embedding-2B.f16.gguf"
+
+[ollama]
+base_url = "http://192.168.1.110:11434"
+model = "qwen3-embedding:8b"
