@@ -71,17 +71,17 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             backend: "llama-cpp".to_string(),
-            concurrent_requests: 4,
+            concurrent_requests: 1,
             chunk_lines: 32,
             chunk_max_chars: DEFAULT_CHUNK_MAX_CHARS,
-            chunk_overlap: 8,
+            chunk_overlap: 4,
             llama_cpp: BackendProfile {
-                base_url: "http://192.168.1.130:11435".to_string(),
+                base_url: "http://127.0.0.1:8080".to_string(),
                 model: "nomic-embed-text".to_string(),
                 api_key: None,
             },
             ollama: BackendProfile {
-                base_url: "http://192.168.1.110:11434".to_string(),
+                base_url: "http://127.0.0.1:11434".to_string(),
                 model: "nomic-embed-text".to_string(),
                 api_key: None,
             },
