@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 use crate::text::{decode_embedding, encode_embedding};
 
@@ -109,6 +110,21 @@ pub fn load_known_files(connection: &Connection) -> Result<HashMap<String, FileS
         hashes.insert(path, state);
     }
     Ok(hashes)
+}
+
+pub fn load_chunk_indexes(connection: &Connection, path: &str, file_hash: &str) -> Result<HashSet<i64>> {
+    let mut statement = connection.prepare(
+        "SELECT chunk_index FROM chunks WHERE path = ?1 AND file_hash = ?2",
+    )?;
+
+    let rows = statement.query_map(params![path, file_hash], |row| row.get::<_, i64>(0))?;
+
+    let mut chunk_indexes = HashSet::new();
+    for row in rows {
+        chunk_indexes.insert(row?);
+    }
+
+    Ok(chunk_indexes)
 }
 
 pub fn delete_paths(connection: &mut Connection, paths: &[String]) -> Result<()> {

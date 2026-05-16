@@ -27,9 +27,17 @@ struct PendingFile {
 struct PendingChunk {
     path: String,
     file_hash: String,
+    base_chunk_index: i64,
+    split_path: u32,
     start_line: i64,
     end_line: i64,
     text: String,
+}
+
+impl PendingChunk {
+    fn chunk_index(&self) -> i64 {
+        (self.base_chunk_index << 32) | i64::from(self.split_path)
+    }
 }
 
 pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> {
@@ -140,18 +148,45 @@ pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> 
         .collect();
     let processed_file_count = files_to_process.len();
 
-    let total_base_chunks = files_to_process
-        .iter()
-        .map(|file| {
-            chunk_text(
-                &file.text,
-                runtime.chunk_lines,
-                runtime.chunk_max_chars,
-                runtime.chunk_overlap,
-            )
-            .len() as u64
-        })
-        .sum();
+    let mut file_plans = Vec::new();
+    let mut total_base_chunks = 0u64;
+
+    for file in files_to_process {
+        let existing_chunk_indexes = {
+            let connection_ref = connection.borrow();
+            db::load_chunk_indexes(&connection_ref, &file.path, &file.hash)?
+        };
+
+        let mut pending_chunks = Vec::new();
+        for chunk in chunk_text(
+            &file.text,
+            runtime.chunk_lines,
+            runtime.chunk_max_chars,
+            runtime.chunk_overlap,
+        ) {
+            let chunk_index = chunk_index_key(chunk.chunk_index as i64, 1);
+            if !existing_chunk_indexes.contains(&chunk_index) {
+                pending_chunks.push(chunk);
+            }
+        }
+
+        if pending_chunks.is_empty() {
+            db::upsert_files(
+                &mut connection.borrow_mut(),
+                &[FileRecord {
+                    path: file.path.clone(),
+                    hash: file.hash.clone(),
+                    size: file.size,
+                    indexed_at: current_unix_timestamp()?,
+                    complete: 1,
+                }],
+            )?;
+            continue;
+        }
+
+        total_base_chunks += pending_chunks.len() as u64;
+        file_plans.push((file, pending_chunks));
+    }
 
     let pb = ProgressBar::new(total_base_chunks);
     pb.set_style(
@@ -163,7 +198,7 @@ pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> 
 
     let mut processed_chunks = 0usize;
     let mut interrupted = false;
-    for file in files_to_process {
+    for (file, base_chunks) in file_plans {
         if cancelled.load(Ordering::Relaxed) {
             interrupted = true;
             break;
@@ -180,18 +215,13 @@ pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> 
             }],
         )?;
 
-        let base_chunks = chunk_text(
-            &file.text,
-            runtime.chunk_lines,
-            runtime.chunk_max_chars,
-            runtime.chunk_overlap,
-        );
         let mut chunk_stream = stream::iter(base_chunks.into_iter().map(|chunk| {
             let backend = backend.clone();
             let connection = Rc::clone(&connection);
             let cancelled = Arc::clone(&cancelled);
             let file_path = file.path.clone();
             let file_hash = file.hash.clone();
+            let base_chunk_index = chunk.chunk_index as i64;
             async move {
                 let records = embed_chunk_with_retry(
                     &backend,
@@ -200,6 +230,8 @@ pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> 
                     PendingChunk {
                         path: file_path,
                         file_hash,
+                        base_chunk_index,
+                        split_path: 1,
                         start_line: chunk.start_line as i64,
                         end_line: chunk.end_line as i64,
                         text: chunk.text,
@@ -294,13 +326,18 @@ async fn embed_chunk_with_retry(
 
         match backend.embed_one(&chunk.text).await {
             Ok(embedding) => {
+                let chunk_index = chunk.chunk_index();
+                let path = chunk.path.clone();
+                let file_hash = chunk.file_hash.clone();
+                let text = chunk.text.clone();
+
                 let record = ChunkRecord {
-                    path: chunk.path,
-                    file_hash: chunk.file_hash,
-                    chunk_index: chunk.start_line,
+                    path,
+                    file_hash,
+                    chunk_index,
                     start_line: chunk.start_line,
                     end_line: chunk.end_line,
-                    text: chunk.text,
+                    text,
                     embedding: normalize_embedding(embedding),
                 };
 
@@ -337,6 +374,10 @@ fn is_too_large_error(error: &anyhow::Error) -> bool {
         || message.contains("maximum context")
 }
 
+fn chunk_index_key(base_chunk_index: i64, split_path: u32) -> i64 {
+    (base_chunk_index << 32) | i64::from(split_path)
+}
+
 fn split_pending_chunk(chunk: &PendingChunk) -> Option<(PendingChunk, PendingChunk)> {
     let lines: Vec<&str> = chunk.text.lines().collect();
     if lines.is_empty() {
@@ -358,6 +399,8 @@ fn split_pending_chunk(chunk: &PendingChunk) -> Option<(PendingChunk, PendingChu
         PendingChunk {
             path: chunk.path.clone(),
             file_hash: chunk.file_hash.clone(),
+            base_chunk_index: chunk.base_chunk_index,
+            split_path: chunk.split_path << 1,
             start_line: chunk.start_line,
             end_line: left_end,
             text: left_text,
@@ -365,6 +408,8 @@ fn split_pending_chunk(chunk: &PendingChunk) -> Option<(PendingChunk, PendingChu
         PendingChunk {
             path: chunk.path.clone(),
             file_hash: chunk.file_hash.clone(),
+            base_chunk_index: chunk.base_chunk_index,
+            split_path: (chunk.split_path << 1) | 1,
             start_line: right_start,
             end_line: chunk.end_line,
             text: right_text,
@@ -386,6 +431,8 @@ fn split_single_line_chunk(chunk: &PendingChunk) -> Option<(PendingChunk, Pendin
         PendingChunk {
             path: chunk.path.clone(),
             file_hash: chunk.file_hash.clone(),
+            base_chunk_index: chunk.base_chunk_index,
+            split_path: chunk.split_path << 1,
             start_line: chunk.start_line,
             end_line: chunk.end_line,
             text: left_text,
@@ -393,6 +440,8 @@ fn split_single_line_chunk(chunk: &PendingChunk) -> Option<(PendingChunk, Pendin
         PendingChunk {
             path: chunk.path.clone(),
             file_hash: chunk.file_hash.clone(),
+            base_chunk_index: chunk.base_chunk_index,
+            split_path: (chunk.split_path << 1) | 1,
             start_line: chunk.start_line,
             end_line: chunk.end_line,
             text: right_text,
