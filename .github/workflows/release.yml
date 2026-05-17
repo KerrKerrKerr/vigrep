@@ -26,7 +26,7 @@ jobs:
           targets: ${{ env.TARGET_TRIPLE }}
 
       - name: Build release binary
-        run: cargo build --locked --release --target "${TARGET_TRIPLE}"
+        run: cargo build --release --target "${TARGET_TRIPLE}"
 
       - name: Package release archive
         run: |
