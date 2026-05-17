@@ -7,7 +7,10 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::backend::EmbeddingBackend;
@@ -123,7 +126,11 @@ pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> 
     }
 
     for file in &discovered_files {
-        if existing_files.get(&file.path).map(|state| state.hash.as_str()) != Some(file.hash.as_str()) {
+        if existing_files
+            .get(&file.path)
+            .map(|state| state.hash.as_str())
+            != Some(file.hash.as_str())
+        {
             paths_to_clear.push(file.path.clone());
         }
     }
@@ -135,15 +142,17 @@ pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> 
         db::delete_paths(&mut connection_ref, &paths_to_clear)?;
     }
 
-    let backend = EmbeddingBackend::new(runtime.backend, runtime.backend_profile.clone(), runtime.debug_http)?;
+    let backend = EmbeddingBackend::new(
+        runtime.backend,
+        runtime.backend_profile.clone(),
+        runtime.debug_http,
+    )?;
 
     let files_to_process: Vec<&PendingFile> = discovered_files
         .iter()
-        .filter(|file| {
-            match existing_files.get(&file.path) {
-                Some(state) if state.hash == file.hash && state.complete => false,
-                _ => true,
-            }
+        .filter(|file| match existing_files.get(&file.path) {
+            Some(state) if state.hash == file.hash && state.complete => false,
+            _ => true,
         })
         .collect();
     let processed_file_count = files_to_process.len();
@@ -272,7 +281,9 @@ pub async fn run_index(runtime: &RuntimeConfig, scan_path: &Path) -> Result<()> 
     pb.finish_and_clear();
 
     if interrupted {
-        println!("Interrupted. Progress up to the last processed request was saved to the database.");
+        println!(
+            "Interrupted. Progress up to the last processed request was saved to the database."
+        );
     }
 
     println!(
@@ -300,7 +311,10 @@ fn install_ctrl_c_handler(cancelled: Arc<AtomicBool>) -> Result<()> {
 }
 
 fn should_skip_file(path: &Path) -> bool {
-    matches!(path.file_name().and_then(|name| name.to_str()), Some(".vigrep.x") | Some(".gitignore"))
+    matches!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some(".vigrep.x") | Some(".gitignore")
+    )
 }
 
 fn current_unix_timestamp() -> Result<i64> {

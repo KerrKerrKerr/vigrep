@@ -15,7 +15,12 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     digest.iter().map(|byte| format!("{:02x}", byte)).collect()
 }
 
-pub fn chunk_text(content: &str, chunk_lines: usize, max_chars: usize, overlap: usize) -> Vec<LineChunk> {
+pub fn chunk_text(
+    content: &str,
+    chunk_lines: usize,
+    max_chars: usize,
+    overlap: usize,
+) -> Vec<LineChunk> {
     let lines: Vec<&str> = content.lines().collect();
     if lines.is_empty() {
         return Vec::new();
@@ -38,7 +43,11 @@ pub fn chunk_text(content: &str, chunk_lines: usize, max_chars: usize, overlap: 
         while line_end < end {
             let line = lines[line_end];
             let line_chars = line.chars().count();
-            let line_cost = if line_end == start { line_chars } else { line_chars + 1 };
+            let line_cost = if line_end == start {
+                line_chars
+            } else {
+                line_chars + 1
+            };
 
             if used_chars == 0 && line_chars > max_chars {
                 for fragment in split_text_into_chunks(line, max_chars) {
@@ -119,7 +128,11 @@ fn split_text_into_chunks(text: &str, max_chars: usize) -> Vec<String> {
 }
 
 pub fn normalize_embedding(mut embedding: Vec<f32>) -> Vec<f32> {
-    let norm = embedding.iter().map(|value| value * value).sum::<f32>().sqrt();
+    let norm = embedding
+        .iter()
+        .map(|value| value * value)
+        .sum::<f32>()
+        .sqrt();
     if norm > 0.0 {
         for value in &mut embedding {
             *value /= norm;
@@ -152,7 +165,10 @@ pub fn preview(text: &str, max_chars: usize) -> String {
     if normalized.chars().count() <= max_chars {
         normalized
     } else {
-        let trimmed: String = normalized.chars().take(max_chars.saturating_sub(1)).collect();
+        let trimmed: String = normalized
+            .chars()
+            .take(max_chars.saturating_sub(1))
+            .collect();
         format!("{trimmed}…")
     }
 }
@@ -184,7 +200,11 @@ mod tests {
         let chunks = chunk_text(&content, 32, 2048, 0);
 
         assert!(chunks.len() > 1);
-        assert!(chunks.iter().all(|chunk| chunk.text.chars().count() <= 2048));
-        assert!(chunks.iter().all(|chunk| chunk.start_line == 1 && chunk.end_line == 1));
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.text.chars().count() <= 2048));
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.start_line == 1 && chunk.end_line == 1));
     }
 }

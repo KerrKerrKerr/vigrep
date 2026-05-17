@@ -36,10 +36,11 @@ async fn main() -> Result<()> {
             query,
             top_k,
             min_score,
+            full,
         } => {
             let app_config = AppConfig::load_or_create(&config_path)?;
             let runtime = RuntimeConfig::from_cli_and_config(&cli, app_config)?;
-            vigrep::search::run_search(&runtime, query, *top_k, *min_score).await?
+            vigrep::search::run_search(&runtime, query, *top_k, *min_score, *full).await?
         }
         Commands::Stats => vigrep::stats::run_stats()?,
     }
@@ -52,13 +53,27 @@ fn print_completions(shell: CompletionShell) {
     let bin_name = command.get_name().to_string();
 
     match shell {
-        CompletionShell::Bash => generate(shells::Bash, &mut command, bin_name, &mut std::io::stdout()),
-        CompletionShell::Elvish => generate(shells::Elvish, &mut command, bin_name, &mut std::io::stdout()),
-        CompletionShell::Fish => generate(shells::Fish, &mut command, bin_name, &mut std::io::stdout()),
-        CompletionShell::PowerShell => {
-            generate(shells::PowerShell, &mut command, bin_name, &mut std::io::stdout())
+        CompletionShell::Bash => {
+            generate(shells::Bash, &mut command, bin_name, &mut std::io::stdout())
         }
-        CompletionShell::Zsh => generate(shells::Zsh, &mut command, bin_name, &mut std::io::stdout()),
+        CompletionShell::Elvish => generate(
+            shells::Elvish,
+            &mut command,
+            bin_name,
+            &mut std::io::stdout(),
+        ),
+        CompletionShell::Fish => {
+            generate(shells::Fish, &mut command, bin_name, &mut std::io::stdout())
+        }
+        CompletionShell::PowerShell => generate(
+            shells::PowerShell,
+            &mut command,
+            bin_name,
+            &mut std::io::stdout(),
+        ),
+        CompletionShell::Zsh => {
+            generate(shells::Zsh, &mut command, bin_name, &mut std::io::stdout())
+        }
     }
 }
 
@@ -67,12 +82,18 @@ fn install_completions(shell: CompletionShell) -> Result<()> {
     let bin_name = command.get_name().to_string();
     let install_dir = completion_install_dir(shell)?;
 
-    fs::create_dir_all(&install_dir)
-        .with_context(|| format!("Failed to create completion directory at {}", install_dir.display()))?;
+    fs::create_dir_all(&install_dir).with_context(|| {
+        format!(
+            "Failed to create completion directory at {}",
+            install_dir.display()
+        )
+    })?;
 
     let installed_path = match shell {
         CompletionShell::Bash => generate_to(shells::Bash, &mut command, bin_name, &install_dir)?,
-        CompletionShell::Elvish => generate_to(shells::Elvish, &mut command, bin_name, &install_dir)?,
+        CompletionShell::Elvish => {
+            generate_to(shells::Elvish, &mut command, bin_name, &install_dir)?
+        }
         CompletionShell::Fish => generate_to(shells::Fish, &mut command, bin_name, &install_dir)?,
         CompletionShell::PowerShell => {
             generate_to(shells::PowerShell, &mut command, bin_name, &install_dir)?
@@ -80,7 +101,10 @@ fn install_completions(shell: CompletionShell) -> Result<()> {
         CompletionShell::Zsh => generate_to(shells::Zsh, &mut command, bin_name, &install_dir)?,
     };
 
-    println!("Installed completion script to {}", installed_path.display());
+    println!(
+        "Installed completion script to {}",
+        installed_path.display()
+    );
 
     if matches!(shell, CompletionShell::Zsh) {
         println!(

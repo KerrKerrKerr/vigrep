@@ -7,6 +7,15 @@ VERSION="${VIGREP_VERSION:-latest}"
 PREFIX="${VIGREP_INSTALL_DIR:-$HOME/.local/bin}"
 BIN_NAME="vigrep"
 
+SOURCE_BRANCH="${VIGREP_SOURCE_BRANCH:-master}"
+case "$SOURCE_BRANCH" in
+    master|main) ;;
+    *)
+        echo "VIGREP_SOURCE_BRANCH must be 'master' or 'main'." >&2
+        exit 1
+        ;;
+esac
+
 usage() {
     cat <<'EOF'
 Usage: install.sh [--repo OWNER/REPO] [--version TAG] [--prefix DIR]
@@ -23,6 +32,7 @@ Environment:
   VIGREP_REPO         Same as --repo
   VIGREP_VERSION      Same as --version
   VIGREP_INSTALL_DIR  Same as --prefix
+    VIGREP_SOURCE_BRANCH Same as the raw URL branch for this script (default: master)
 EOF
 }
 

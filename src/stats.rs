@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use owo_colors::OwoColorize;
 
 use crate::db;
@@ -35,13 +35,33 @@ pub fn run_stats() -> Result<()> {
     let stats = db::load_stats(&connection)?;
 
     println!("{} {}", "Database:".cyan().bold(), db_path.display());
-    println!("{} {}", "Files indexed:".cyan().bold(), stats.file_count.to_string().green().bold());
-    println!("{} {}", "Chunks indexed:".cyan().bold(), stats.chunk_count.to_string().green().bold());
-    println!("{} {}", "Source bytes:".cyan().bold(), format_bytes(stats.source_bytes).yellow().bold());
-    println!("{} {}", "Embedded bytes:".cyan().bold(), format_bytes(stats.embedded_bytes).yellow().bold());
+    println!(
+        "{} {}",
+        "Files indexed:".cyan().bold(),
+        stats.file_count.to_string().green().bold()
+    );
+    println!(
+        "{} {}",
+        "Chunks indexed:".cyan().bold(),
+        stats.chunk_count.to_string().green().bold()
+    );
+    println!(
+        "{} {}",
+        "Source bytes:".cyan().bold(),
+        format_bytes(stats.source_bytes).yellow().bold()
+    );
+    println!(
+        "{} {}",
+        "Embedded bytes:".cyan().bold(),
+        format_bytes(stats.embedded_bytes).yellow().bold()
+    );
 
     match stats.last_indexed_at {
-        Some(value) => println!("{} {}", "Last indexed (unix):".cyan().bold(), value.to_string().magenta().bold()),
+        Some(value) => println!(
+            "{} {}",
+            "Last indexed (unix):".cyan().bold(),
+            value.to_string().magenta().bold()
+        ),
         None => println!("{} {}", "Last indexed:".cyan().bold(), "n/a".dimmed()),
     }
 

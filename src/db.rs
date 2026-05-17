@@ -1,9 +1,9 @@
+use crate::text::{decode_embedding, encode_embedding};
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
-use crate::text::{decode_embedding, encode_embedding};
 
 #[derive(Debug, Clone)]
 pub struct FileRecord {
@@ -112,10 +112,13 @@ pub fn load_known_files(connection: &Connection) -> Result<HashMap<String, FileS
     Ok(hashes)
 }
 
-pub fn load_chunk_indexes(connection: &Connection, path: &str, file_hash: &str) -> Result<HashSet<i64>> {
-    let mut statement = connection.prepare(
-        "SELECT chunk_index FROM chunks WHERE path = ?1 AND file_hash = ?2",
-    )?;
+pub fn load_chunk_indexes(
+    connection: &Connection,
+    path: &str,
+    file_hash: &str,
+) -> Result<HashSet<i64>> {
+    let mut statement =
+        connection.prepare("SELECT chunk_index FROM chunks WHERE path = ?1 AND file_hash = ?2")?;
 
     let rows = statement.query_map(params![path, file_hash], |row| row.get::<_, i64>(0))?;
 
