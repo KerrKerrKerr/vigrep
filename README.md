@@ -6,6 +6,8 @@ It aims to speed up onboarding on large projects with inredible ease of use. It 
 
 Ollama and llama.cpp backends are the only ones supported due to the fact I only use them for inference of embedding models. You can request more backends if needed.
 
+I personally use ollama for embeddings for comatibiliry with other infrastructure and llama.cpp for rerankings as ollama doesn't quite support it.
+
 ## What it does
 
 - Indexes text files under a directory into `.vigrep.x` (SQLite + normalized embeddings).
@@ -106,29 +108,6 @@ The main settings you will usually change are:
 - `concurrent_requests`: embedding request concurrency during indexing
 - `rerank_top_n`: how many candidates are reranked before truncating output
 
-Example config:
-
-```toml
-backend = "ollama"
-rerank_backend = "llama-cpp"
-concurrent_requests = 1
-chunk_lines = 32
-chunk_max_chars = 2048
-chunk_overlap = 4
-default_top_k = 10
-rerank_enabled = false
-rerank_top_n = 40
-
-[ollama]
-base_url = "http://127.0.0.1:11434"
-model = "nomic-embed-text"
-
-[llama_cpp]
-base_url = "http://127.0.0.1:8080"
-model = "nomic-embed-text"
-```
-
-CLI flags still override config values when you pass them. For example, `vigrep search "query" -k 5` overrides `default_top_k`, and `vigrep --backend ollama search "query"` overrides `backend`.
 
 ## Commands
 
