@@ -10,6 +10,7 @@ use crate::config::{BackendChoice, BackendProfile};
 pub enum EmbeddingBackend {
     LlamaCpp(BackendClient),
     Ollama(BackendClient),
+    Vllm(BackendClient),
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +50,12 @@ struct OllamaChatRequest<'a> {
     stream: bool,
     format: &'a str,
     messages: Vec<OllamaChatMessage<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+struct VllmEmbedRequest<'a> {
+    input: &'a str,
+    model: &'a str,
 }
 
 impl BackendClient {
@@ -396,7 +403,7 @@ impl BackendClient {
         let request_body =
             serde_json::to_string(&request).context("Failed to serialize llama.cpp request")?;
 
-        for base_url in self.llama_cpp_base_urls() {
+        if let Some(base_url) = self.llama_cpp_base_urls().into_iter().next() {
             let url = format!("{base_url}/embedding");
             self.log_request("llama.cpp", &url, &request_body);
 
@@ -459,6 +466,64 @@ impl BackendClient {
             serde_json::from_str(&body).context("Failed to parse the Ollama embedding response")?;
 
         Self::extract_embedding(&parsed)
+    }
+
+    async fn embed_vllm(&self, input: &str) -> Result<Vec<f32>> {
+        let url = format!("{}/v1/embeddings", self.normalize_embed_base_url());
+        let request = VllmEmbedRequest {
+            input,
+            model: &self.profile.model,
+        };
+        let request_body =
+            serde_json::to_string(&request).context("Failed to serialize vLLM request")?;
+
+        self.log_request("vllm", &url, &request_body);
+
+        let response = self
+            .apply_auth(self.client.post(url.clone()).json(&request))
+            .send()
+            .await
+            .context("Failed to contact the vLLM embedding endpoint")?;
+
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .context("Failed to read the vLLM embedding response body")?;
+        self.log_response("vllm", &url, status, &body);
+
+        if !status.is_success() {
+            bail!("vLLM returned an error response: HTTP {status} body={body}");
+        }
+
+        let parsed: Value =
+            serde_json::from_str(&body).context("Failed to parse the vLLM embedding response")?;
+
+        Self::extract_embedding(&parsed)
+    }
+
+    async fn rerank_vllm(
+        &self,
+        query: &str,
+        documents: &[String],
+        top_n: usize,
+    ) -> Result<Vec<RerankResult>> {
+        let model = self.effective_rerank_model().unwrap_or_default();
+        let payloads = vec![
+            json!({
+                "model": model,
+                "query": query,
+                "documents": documents,
+                "top_n": top_n,
+            }),
+            json!({
+                "query": query,
+                "documents": documents,
+                "top_n": top_n,
+            }),
+        ];
+        self.post_for_rerank("vllm", &["/v1/rerank", "/rerank"], &payloads)
+            .await
     }
 
     async fn rerank_ollama(
@@ -572,6 +637,7 @@ impl EmbeddingBackend {
         Ok(match choice {
             BackendChoice::LlamaCpp => Self::LlamaCpp(client),
             BackendChoice::Ollama => Self::Ollama(client),
+            BackendChoice::Vllm => Self::Vllm(client),
         })
     }
 
@@ -579,6 +645,7 @@ impl EmbeddingBackend {
         match self {
             EmbeddingBackend::LlamaCpp(client) => client.embed_llama_cpp(input).await,
             EmbeddingBackend::Ollama(client) => client.embed_ollama(input).await,
+            EmbeddingBackend::Vllm(client) => client.embed_vllm(input).await,
         }
     }
 
@@ -593,6 +660,7 @@ impl EmbeddingBackend {
                 client.rerank_llama_cpp(query, documents, top_n).await
             }
             EmbeddingBackend::Ollama(client) => client.rerank_ollama(query, documents, top_n).await,
+            EmbeddingBackend::Vllm(client) => client.rerank_vllm(query, documents, top_n).await,
         }
     }
 
@@ -600,6 +668,7 @@ impl EmbeddingBackend {
         match self {
             EmbeddingBackend::LlamaCpp(client) => client.effective_rerank_model(),
             EmbeddingBackend::Ollama(client) => client.effective_rerank_model(),
+            EmbeddingBackend::Vllm(client) => client.effective_rerank_model(),
         }
     }
 
@@ -607,6 +676,7 @@ impl EmbeddingBackend {
         match self {
             EmbeddingBackend::LlamaCpp(_) => "llama.cpp",
             EmbeddingBackend::Ollama(_) => "ollama",
+            EmbeddingBackend::Vllm(_) => "vllm",
         }
     }
 }

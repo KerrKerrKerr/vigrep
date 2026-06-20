@@ -24,6 +24,7 @@ pub struct AppConfig {
     pub rerank_top_n: usize,
     pub llama_cpp: BackendProfile,
     pub ollama: BackendProfile,
+    pub vllm: BackendProfile,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +57,7 @@ pub struct RuntimeConfig {
 pub enum BackendChoice {
     LlamaCpp,
     Ollama,
+    Vllm,
 }
 
 impl BackendChoice {
@@ -63,7 +65,8 @@ impl BackendChoice {
         match value.trim().to_ascii_lowercase().as_str() {
             "llama-cpp" | "llama.cpp" | "llamacpp" => Ok(Self::LlamaCpp),
             "ollama" => Ok(Self::Ollama),
-            other => bail!("unsupported backend '{other}'. Use llama-cpp or ollama"),
+            "vllm" => Ok(Self::Vllm),
+            other => bail!("unsupported backend '{other}'. Use llama-cpp, ollama, or vllm"),
         }
     }
 }
@@ -103,6 +106,13 @@ impl Default for AppConfig {
                 base_url: "http://127.0.0.1:11434".to_string(),
                 rerank_base_url: Some(String::new()),
                 model: "nomic-embed-text".to_string(),
+                rerank_model: Some(String::new()),
+                api_key: None,
+            },
+            vllm: BackendProfile {
+                base_url: "http://127.0.0.1:8000".to_string(),
+                rerank_base_url: Some(String::new()),
+                model: "BAAI/bge-base-en-v1.5".to_string(),
                 rerank_model: Some(String::new()),
                 api_key: None,
             },
@@ -232,10 +242,12 @@ impl RuntimeConfig {
         let mut backend_profile = match backend {
             BackendChoice::LlamaCpp => config.llama_cpp.clone(),
             BackendChoice::Ollama => config.ollama.clone(),
+            BackendChoice::Vllm => config.vllm.clone(),
         };
         let mut rerank_backend_profile = match rerank_backend {
             BackendChoice::LlamaCpp => config.llama_cpp.clone(),
             BackendChoice::Ollama => config.ollama.clone(),
+            BackendChoice::Vllm => config.vllm.clone(),
         };
 
         if let Some(base_url) = &cli.base_url {
@@ -258,7 +270,7 @@ impl RuntimeConfig {
             bail!("The selected backend has no base URL configured");
         }
 
-        if matches!(backend, BackendChoice::Ollama) && backend_profile.model.trim().is_empty() {
+        if matches!(backend, BackendChoice::Ollama | BackendChoice::Vllm) && backend_profile.model.trim().is_empty() {
             bail!("The selected backend has no model configured");
         }
 

@@ -23,6 +23,9 @@ async fn main() -> Result<()> {
                 print_completions(*shell);
             }
         }
+        Commands::Endpoint => {
+            vigrep::endpoint::run_endpoint(&config_path).await?
+        }
         Commands::Configure => {
             vigrep::config::ensure_config_exists(&config_path)?;
             vigrep::config::open_config_in_editor(&config_path)?;

@@ -10,6 +10,7 @@ Examples:
   vigrep --backend ollama --base-url http://127.0.0.1:11434 --rerank-backend llama-cpp --rerank-base-url http://127.0.0.1:9090 search "oauth callback flow" --rerank
   vigrep search "oauth callback flow" --rerank --rerank-model bge-reranker-v2-m3
   vigrep stats
+  vigrep endpoint
   vigrep completions zsh > _vigrep
   vigrep completions zsh --install
 
@@ -40,7 +41,7 @@ pub struct Cli {
         long,
         global = true,
         value_name = "BACKEND",
-        help = "Backend to use: llama-cpp or ollama"
+        help = "Backend to use: llama-cpp, ollama, or vllm"
     )]
     pub backend: Option<String>,
 
@@ -72,7 +73,7 @@ pub struct Cli {
         long,
         global = true,
         value_name = "MODEL",
-        help = "Override the backend model name (Ollama)"
+        help = "Override the backend model name (Ollama / vLLM)"
     )]
     pub model: Option<String>,
 
@@ -129,6 +130,8 @@ pub enum Commands {
     },
     #[command(about = "Edit the config file in nano")]
     Configure,
+    #[command(about = "Interactively configure endpoints with model discovery")]
+    Endpoint,
     #[command(about = "Index or reindex a directory")]
     Index {
         #[arg(value_name = "PATH", default_value = ".")]

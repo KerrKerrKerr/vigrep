@@ -16,6 +16,6 @@
 **/*.rs.bk
 
 
-mandm_sample_text_large.txt
+#mandm_sample_text_large.txt
 
 Cargo.lock
